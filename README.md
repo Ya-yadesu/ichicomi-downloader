@@ -9,6 +9,10 @@
 ## 🌟 核心推荐方案
 
 ### ⚡ [一迅社图片下载油猴脚本](一迅社图片下载油猴脚本.user.js) (Tampermonkey Userscript)
+
+[![Install Userscript](https://img.shields.io/badge/install-Userscript-green.svg?style=for-the-badge&logo=tampermonkey)](https://raw.githubusercontent.com/Ya-yadesu/ichicomi-downloader/main/%E4%B8%80%E8%BF%85%E7%A4%BE%E5%9B%BE%E7%89%87%E4%B8%8B%E8%BD%BD%E6%B2%B9%E7%8C%B4%E8%84%9A%E6%9C%AC.user.js)
+
+*   **直装链接**：👉 [点击此处直接安装脚本](https://raw.githubusercontent.com/Ya-yadesu/ichicomi-downloader/main/%E4%B8%80%E8%BF%85%E7%A4%BE%E5%9B%BE%E7%89%87%E4%B8%8B%E8%BD%BD%E6%B2%B9%E7%8C%B4%E8%84%9A%E6%9C%AC.user.js) 👈 *(请确保浏览器已安装 Tampermonkey 或 Violentmonkey 插件)*
 *   **路径**：[一迅社图片下载油猴脚本.user.js](一迅社图片下载油猴脚本.user.js)
 *   **功能**：直接在浏览器中运行，提供“一键下载整话”的悬浮按钮。
 *   **优势**：

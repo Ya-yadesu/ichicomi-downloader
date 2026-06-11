@@ -1,11 +1,13 @@
 // ==UserScript==
 // @name         一迅社图片下载油猴脚本
-// @namespace    http://tampermonkey.net/
+// @namespace    https://github.com/Ya-yadesu/ichicomi-downloader
 // @version      3.3
 // @description  精简版一迅社漫画图片复原下载脚本。提供“一键下载整话”悬浮按钮，支持后台静默下载、4x4对齐复原及边缘像素保留。支持自定义导出画质。
 // @match        https://ichicomi.com/*
 // @run-at       document-end
 // @grant        none
+// @updateURL    https://raw.githubusercontent.com/Ya-yadesu/ichicomi-downloader/main/%E4%B8%80%E8%BF%85%E7%A4%BE%E5%9B%BE%E7%89%87%E4%B8%8B%E8%BD%BD%E6%B2%B9%E7%8C%B4%E8%84%9A%E6%9C%AC.user.js
+// @downloadURL  https://raw.githubusercontent.com/Ya-yadesu/ichicomi-downloader/main/%E4%B8%80%E8%BF%85%E7%A4%BE%E5%9B%BE%E7%89%87%E4%B8%8B%E8%BD%BD%E6%B2%B9%E7%8C%B4%E8%84%9A%E6%9C%AC.user.js
 // ==/UserScript==
 
 (function() {
