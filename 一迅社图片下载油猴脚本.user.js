@@ -10,6 +10,8 @@
 // @downloadURL  https://raw.githubusercontent.com/Ya-yadesu/ichicomi-downloader/main/%E4%B8%80%E8%BF%85%E7%A4%BE%E5%9B%BE%E7%89%87%E4%B8%8B%E8%BD%BD%E6%B2%B9%E7%8C%B4%E8%84%9A%E6%9C%AC.user.js
 // ==/UserScript==
 
+/* jshint esversion: 8 */
+
 (function() {
     'use strict';
     
