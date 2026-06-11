@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         一迅社图片复原脚本
+// @name         一迅社图片下载油猴脚本
 // @namespace    http://tampermonkey.net/
 // @version      3.3
 // @description  精简版一迅社漫画图片复原下载脚本。提供“一键下载整话”悬浮按钮，支持后台静默下载、4x4对齐复原及边缘像素保留。支持自定义导出画质。
