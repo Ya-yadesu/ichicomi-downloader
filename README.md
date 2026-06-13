@@ -1,6 +1,6 @@
 # ichicomi-downloader 🗂️
 
-English | [简体中文](README-zh.md)
+English | [简体中文](README.zh-CN.md)
 
 This repository manages scripts and tools for downloading and restoring manga images from Ichijinsha (ichicomi.com).
 
