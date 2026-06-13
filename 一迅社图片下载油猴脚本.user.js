@@ -1,11 +1,12 @@
 // ==UserScript==
 // @name         一迅社图片下载油猴脚本
 // @namespace    https://github.com/Ya-yadesu/ichicomi-downloader
-// @version      3.3
-// @description  精简版一迅社漫画图片复原下载脚本。提供“一键下载整话”悬浮按钮，支持后台静默下载、4x4对齐复原及边缘像素保留。支持自定义导出画质。
+// @version      3.4
+// @description  精简版一迅社漫画图片复原下载脚本。提供“一键下载整话”悬浮按钮，支持后台静默下载、4x4对齐复原及边缘像素保留。支持自定义导出画质，支持自动打包为zip。
 // @match        https://ichicomi.com/*
 // @run-at       document-end
 // @grant        none
+// @require      https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js
 // @updateURL    https://raw.githubusercontent.com/Ya-yadesu/ichicomi-downloader/main/%E4%B8%80%E8%BF%85%E7%A4%BE%E5%9B%BE%E7%89%87%E4%B8%8B%E8%BD%BD%E6%B2%B9%E7%8C%B4%E8%84%9A%E6%9C%AC.user.js
 // @downloadURL  https://raw.githubusercontent.com/Ya-yadesu/ichicomi-downloader/main/%E4%B8%80%E8%BF%85%E7%A4%BE%E5%9B%BE%E7%89%87%E4%B8%8B%E8%BD%BD%E6%B2%B9%E7%8C%B4%E8%84%9A%E6%9C%AC.user.js
 // ==/UserScript==
@@ -20,7 +21,8 @@
     // ==========================================
     const CONFIG = {
         format: 'image/jpeg',  // 导出格式可选: 'image/jpeg' (默认), 'image/png' (完全无损但体积大), 'image/webp' (高压缩无损/有损)
-        quality: 0.98          // 导出质量 (仅对 jpeg 和 webp 生效，范围 0.0 ~ 1.0)
+        quality: 0.98,         // 导出质量 (仅对 jpeg 和 webp 生效，范围 0.0 ~ 1.0)
+        zipEnabled: true       // 是否开启自动打包为 ZIP 文件 (true: 开启打包, false: 依次下载单张图片)
     };
 
     let btn = null;
@@ -77,10 +79,10 @@
     }
 
     /**
-     * 执行图片解密并触发下载
+     * 执行图片解密并返回复原后的 Blob
      */
-    function processAndDownload(blob, pageIndex) {
-        return new Promise((resolve) => {
+    function processAndRestore(blob, pageIndex) {
+        return new Promise((resolve, reject) => {
             // 根据格式配置确定文件后缀
             let ext = 'jpg';
             if (CONFIG.format === 'image/png') ext = 'png';
@@ -94,33 +96,53 @@
                 const restoredCanvas = restoreImage(img);
                 
                 // 统一的保存下载回调
-                const saveCallback = (restoredBlob) => {
-                    const restoredUrl = URL.createObjectURL(restoredBlob);
-                    const a = document.createElement('a');
-                    a.href = restoredUrl;
-                    a.download = finalName;
-                    a.click();
-                    console.log(`[一迅社复原] 成功保存: ${finalName} (${CONFIG.format})`);
-                    setTimeout(() => {
-                        URL.revokeObjectURL(restoredUrl);
-                        URL.revokeObjectURL(blobUrl);
-                    }, 1000);
-                    resolve();
+                const callback = (restoredBlob) => {
+                    URL.revokeObjectURL(blobUrl);
+                    resolve({ blob: restoredBlob, filename: finalName });
                 };
 
                 // 根据不同格式调用 toBlob
                 if (CONFIG.format === 'image/png') {
-                    restoredCanvas.toBlob(saveCallback, CONFIG.format);
+                    restoredCanvas.toBlob(callback, CONFIG.format);
                 } else {
-                    restoredCanvas.toBlob(saveCallback, CONFIG.format, CONFIG.quality);
+                    restoredCanvas.toBlob(callback, CONFIG.format, CONFIG.quality);
                 }
             };
             img.onerror = () => {
                 console.error(`[一迅社复原] 加载图片失败: 第 ${pageIndex} 页`);
                 URL.revokeObjectURL(blobUrl);
-                resolve();
+                reject(new Error(`加载图片失败: 第 ${pageIndex} 页`));
             };
         });
+    }
+
+    // 获取安全的 Zip 文件名
+    function getZipFilename() {
+        let title = "";
+        const el = document.getElementById('episode-json');
+        if (el) {
+            try {
+                const data = JSON.parse(el.getAttribute('data-value'));
+                const prod = data.readableProduct;
+                if (prod) {
+                    const seriesName = prod.series && prod.series.name ? prod.series.name : "";
+                    const epTitle = prod.title ? prod.title : "";
+                    if (seriesName && epTitle) {
+                        title = `${seriesName} - ${epTitle}`;
+                    } else {
+                        title = seriesName || epTitle || "";
+                    }
+                }
+            } catch (e) {}
+        }
+        if (!title && document.title) {
+            title = document.title.replace(/\s*\|\s*ichicomi/i, '').trim();
+        }
+        if (!title) {
+            title = "manga_episode";
+        }
+        // 过滤掉文件名中的非法字符
+        return title.replace(/[\\/:*?"<>|]/g, "_") + ".zip";
     }
 
     // 一键下载整话逻辑
@@ -139,6 +161,18 @@
 
         console.log(`[一迅社复原] 开始一键下载，共 ${pageUrls.length} 页。`);
 
+        let zip = null;
+        if (CONFIG.zipEnabled) {
+            if (typeof JSZip === 'undefined') {
+                alert("JSZip 库未加载成功，请检查网络或脚本声明。");
+                resetButton();
+                return;
+            }
+            zip = new JSZip();
+        }
+
+        let successCount = 0;
+
         for (let i = 0; i < pageUrls.length; i++) {
             const pageIndex = i + 1;
             btn.innerText = `下载中 (${pageIndex}/${pageUrls.length})`;
@@ -147,7 +181,23 @@
                 const url = pageUrls[i];
                 const res = await fetch(url);
                 const blob = await res.blob();
-                await processAndDownload(blob, pageIndex);
+                const result = await processAndRestore(blob, pageIndex);
+                
+                if (CONFIG.zipEnabled && zip) {
+                    zip.file(result.filename, result.blob);
+                    console.log(`[一迅社复原] 已加入 ZIP: ${result.filename}`);
+                } else {
+                    const restoredUrl = URL.createObjectURL(result.blob);
+                    const a = document.createElement('a');
+                    a.href = restoredUrl;
+                    a.download = result.filename;
+                    a.click();
+                    console.log(`[一迅社复原] 成功保存: ${result.filename} (${CONFIG.format})`);
+                    setTimeout(() => {
+                        URL.revokeObjectURL(restoredUrl);
+                    }, 1000);
+                }
+                successCount++;
             } catch (err) {
                 console.error(`[一迅社复原] 下载第 ${pageIndex} 页失败:`, err);
             }
@@ -155,15 +205,39 @@
             await new Promise(resolve => setTimeout(resolve, 250));
         }
 
+        if (CONFIG.zipEnabled && zip && successCount > 0) {
+            btn.innerText = "正在打包 ZIP...";
+            try {
+                const zipBlob = await zip.generateAsync({type: "blob"});
+                const zipFilename = getZipFilename();
+                const zipUrl = URL.createObjectURL(zipBlob);
+                const a = document.createElement('a');
+                a.href = zipUrl;
+                a.download = zipFilename;
+                a.click();
+                console.log(`[一迅社复原] ZIP 打包下载成功: ${zipFilename}`);
+                setTimeout(() => {
+                    URL.revokeObjectURL(zipUrl);
+                }, 1000);
+            } catch (zipErr) {
+                console.error("[一迅社复原] 打包 ZIP 失败:", zipErr);
+                alert("打包 ZIP 失败，请查看控制台错误。");
+            }
+        }
+
         btn.innerText = "下载完成";
         btn.style.backgroundColor = 'rgba(76, 175, 80, 0.85)';
 
         setTimeout(() => {
-            btn.innerText = "一键下载整话";
-            btn.style.backgroundColor = 'rgba(30, 136, 229, 0.85)';
-            btn.style.cursor = 'pointer';
-            btn.disabled = false;
+            resetButton();
         }, 3000);
+    }
+
+    function resetButton() {
+        btn.innerText = "一键下载整话";
+        btn.style.backgroundColor = 'rgba(30, 136, 229, 0.85)';
+        btn.style.cursor = 'pointer';
+        btn.disabled = false;
     }
 
     // 创建悬浮下载按钮
