@@ -478,7 +478,7 @@
                 return false;
             } else {
                 // 手动下载：短暂漂浮提示，不阻止
-                showToast('已下载过，可再次下载');
+                showToast('该章节已下载过');
             }
         }
 

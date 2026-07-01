@@ -32,17 +32,18 @@ The script displays three buttons at the bottom-left of the page:
 
 | Button | Left Click | Right Click |
 |--------|------------|-------------|
-| **Download Chapter** | Download current chapter | — |
+| **Download Chapter** | Download current chapter | Toggle ZIP / single-page mode |
 | **Auto-Check** | Toggle auto-download on/off | Cycle time window: 1h → 6h → 12h → 24h → 48h → 7d |
 | **RSS Poll** | Toggle RSS polling on/off | Cycle poll interval: 30s → 1min → 5min → 10min → 30min → 60min |
 
-The button text shows the current value at a glance (e.g. `RSS：1分`, `自动：24时`).
+Buttons show current settings at a glance (e.g. `一键下载整话(ZIP)`, `RSS：1分`, `自动：24时`).
 
+- **ZIP Toggle**: Right-click the download button to switch between ZIP archive and single-page download modes. Auto-download follows the same setting.
 - **RSS Progress Bar**: When RSS polling is enabled, the button displays a gradient progress bar that fills up over the poll interval, providing visual feedback.
 - **Non-Episode Pages**: On non-episode pages (series list, homepage, etc.), buttons are grayed out and disabled with a tooltip.
 - **Download Retry**: Failed page downloads automatically retry once after a 1-second delay.
 - **Smart Time Window**: Auto-download only triggers for episodes published within the configured time window, preventing accidental downloads of old episodes.
-- **Duplicate Prevention**: Auto-download skips previously downloaded episodes; manual download shows an alert but allows re-downloading.
+- **Duplicate Prevention**: Auto-download silently skips previously downloaded episodes; manual download shows a floating toast notification.
 - **Auto-Log Cleanup**: Download records older than 15 days are automatically cleaned up on page visit.
 - All settings persist across page refreshes via `localStorage`.
 
@@ -52,11 +53,11 @@ The button text shows the current value at a glance (e.g. `RSS：1分`, `自动�
 ### v4.0 (2026-07-02)
 - **RSS-based auto-check**: Replaced page-refresh polling with lightweight RSS feed polling (~few KB per request)
 - **Dual-toggle design**: Separate "RSS Poll" (discovers new episodes) and "Auto-Check" (downloads them) toggles
-- **Right-click presets**: Right-click RSS button to cycle poll intervals (30s/1min/5min/10min/30min/60min); right-click Auto button to cycle time windows (1h/6h/12h/24h/48h/7d)
+- **Right-click presets on all three buttons**: Right-click to toggle ZIP/single mode, cycle poll intervals (30s/1min/5min/10min/30min/60min), or cycle time windows (1h/6h/12h/24h/48h/7d)
 - **RSS progress bar**: Animated gradient fills up over the poll interval for visual feedback
 - **Non-episode page handling**: Buttons gray out and disable on non-episode pages
 - **Download retry**: Failed page downloads retry once after a 1-second delay
-- **Duplicate prevention**: Auto-download silently skips previously downloaded episodes; manual download shows a reminder alert
+- **Duplicate prevention**: Auto-download silently skips previously downloaded episodes; manual download shows a floating toast notification
 - **Auto-log cleanup**: Download records older than 15 days are automatically removed
 - **Simplified recording**: Download log uses episode URL as key instead of date comparison
 - **30-second poll interval**: Added ultra-fast 30-second RSS polling preset
