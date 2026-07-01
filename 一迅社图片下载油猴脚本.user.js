@@ -2,7 +2,7 @@
 // @name         ichicomi-downloader
 // @name:zh-CN   一迅社图片下载油猴脚本
 // @namespace    https://github.com/Ya-yadesu/ichicomi-downloader
-// @version      3.8
+// @version      4.0
 // @description  Manga image downloader and restorer for Ichijinsha (ichicomi.com). Supports 4x4 image restoration, auto-ZIP packaging, and RSS-based automatic update checks.
 // @description:zh-CN 精简版一迅社漫画图片复原下载脚本。提供”一键下载整话”悬浮按钮，支持后台静默下载、4x4对齐复原及边缘像素保留。支持自定义导出画质、自动打包为zip，以及基于RSS的自动更新检查并下载。
 // @license      MIT
@@ -38,6 +38,7 @@
 
     // RSS 轮询间隔预设（毫秒）
     const POLL_INTERVAL_PRESETS = [
+        { label: '30秒', ms: 30 * 1000 },
         { label: '1分', ms: 1 * 60 * 1000 },
         { label: '5分', ms: 5 * 60 * 1000 },
         { label: '10分', ms: 10 * 60 * 1000 },
@@ -371,6 +372,7 @@
         if (!isEpisodePage()) {
             rssBtn.innerText = 'RSS：--';
             stopRssProgress();
+            rssBtn.style.background = '';
             rssBtn.style.backgroundColor = 'rgba(80, 80, 80, 0.5)';
         } else if (enabled) {
             rssBtn.innerText = `RSS：${label}`;
@@ -378,6 +380,7 @@
         } else {
             rssBtn.innerText = 'RSS：关';
             stopRssProgress();
+            rssBtn.style.background = '';
             rssBtn.style.backgroundColor = 'rgba(80, 80, 80, 0.82)';
         }
     }
@@ -399,6 +402,9 @@
         if (rssProgressTimer) {
             clearInterval(rssProgressTimer);
             rssProgressTimer = null;
+        }
+        if (rssBtn) {
+            rssBtn.style.background = '';
         }
         pollStartTime = 0;
     }

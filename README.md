@@ -16,6 +16,7 @@ With the evolution of our technical solutions, we now primarily use the **Tamper
 
 *   **Install Link**: 👉 [Click here to install the script](https://raw.githubusercontent.com/Ya-yadesu/ichicomi-downloader/main/%E4%B8%80%E8%BF%85%E7%A4%BE%E5%9B%BE%E7%89%87%E4%B8%8B%E8%BD%BD%E6%B2%B9%E7%8C%B4%E8%84%9A%E6%9C%AC.user.js) 👈 *(Make sure you have Tampermonkey or Violentmonkey installed)*
 *   **Path**: [一迅社图片下载油猴脚本.user.js](一迅社图片下载油猴脚本.user.js)
+*   **Version**: 4.0
 *   **Features**: Runs directly in your browser, providing a floating "Download Chapter" button. Supports automatic packaging into a ZIP file or downloading pages individually.
 *   **Advantages**:
     1.  **Bypasses network and anti-crawling restrictions**: Directly reuses your logged-in browser session, requiring no User-Agent or Cookie configurations.
@@ -33,14 +34,37 @@ The script displays three buttons at the bottom-left of the page:
 |--------|------------|-------------|
 | **Download Chapter** | Download current chapter | — |
 | **Auto-Check** | Toggle auto-download on/off | Cycle time window: 1h → 6h → 12h → 24h → 48h → 7d |
-| **RSS Poll** | Toggle RSS polling on/off | Cycle poll interval: 1min → 5min → 10min → 30min → 60min |
+| **RSS Poll** | Toggle RSS polling on/off | Cycle poll interval: 30s → 1min → 5min → 10min → 30min → 60min |
 
 The button text shows the current value at a glance (e.g. `RSS：1分`, `自动：24时`).
 
-- RSS polling is lightweight (~few KB per poll), safe to run at high frequency.
-- Auto-download only triggers for episodes published within the configured time window.
-- Button text shows the current setting — right-click to adjust, no need to edit the script.
+- **RSS Progress Bar**: When RSS polling is enabled, the button displays a gradient progress bar that fills up over the poll interval, providing visual feedback.
+- **Non-Episode Pages**: On non-episode pages (series list, homepage, etc.), buttons are grayed out and disabled with a tooltip.
+- **Download Retry**: Failed page downloads automatically retry once after a 1-second delay.
+- **Smart Time Window**: Auto-download only triggers for episodes published within the configured time window, preventing accidental downloads of old episodes.
+- **Duplicate Prevention**: Auto-download skips previously downloaded episodes; manual download shows an alert but allows re-downloading.
+- **Auto-Log Cleanup**: Download records older than 15 days are automatically cleaned up on page visit.
 - All settings persist across page refreshes via `localStorage`.
+
+---
+## 📝 Changelog
+
+### v4.0 (2026-07-02)
+- **RSS-based auto-check**: Replaced page-refresh polling with lightweight RSS feed polling (~few KB per request)
+- **Dual-toggle design**: Separate "RSS Poll" (discovers new episodes) and "Auto-Check" (downloads them) toggles
+- **Right-click presets**: Right-click RSS button to cycle poll intervals (30s/1min/5min/10min/30min/60min); right-click Auto button to cycle time windows (1h/6h/12h/24h/48h/7d)
+- **RSS progress bar**: Animated gradient fills up over the poll interval for visual feedback
+- **Non-episode page handling**: Buttons gray out and disable on non-episode pages
+- **Download retry**: Failed page downloads retry once after a 1-second delay
+- **Duplicate prevention**: Auto-download silently skips previously downloaded episodes; manual download shows a reminder alert
+- **Auto-log cleanup**: Download records older than 15 days are automatically removed
+- **Simplified recording**: Download log uses episode URL as key instead of date comparison
+- **30-second poll interval**: Added ultra-fast 30-second RSS polling preset
+
+### v3.7
+- Initial auto-check feature with page-refresh based polling
+- Configurable download format (JPEG/PNG/WebP) and quality
+- ZIP packaging with automatic naming
 
 ---
 
