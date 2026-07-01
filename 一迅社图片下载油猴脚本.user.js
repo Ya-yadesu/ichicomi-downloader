@@ -445,8 +445,16 @@
                 console.log("[一迅社复原] 该章节已下载过，跳过自动下载。");
                 return false;
             } else {
-                // 手动下载：提醒但不阻止
-                alert("该章节已下载过，可以再次下载。");
+                // 手动下载：按钮短暂提示，不阻止
+                if (btn) {
+                    const prev = btn.innerText;
+                    btn.innerText = '已下载过，可再次下载';
+                    btn.style.backgroundColor = 'rgba(255, 152, 0, 0.85)';
+                    setTimeout(() => {
+                        btn.innerText = prev;
+                        btn.style.backgroundColor = 'rgba(30, 136, 229, 0.85)';
+                    }, 2000);
+                }
             }
         }
 
