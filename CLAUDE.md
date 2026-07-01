@@ -9,7 +9,8 @@ ichicomi-downloader is a Tampermonkey userscript that downloads and restores man
 ## Repository Structure
 
 ```text
-一迅社图片下载油猴脚本.user.js   ← The entire project: a single userscript (~820 lines)
+一迅社图片下载油猴脚本.user.js   ← The entire project: a single userscript (~855 lines)
+CLAUDE.md                         ← Project architecture and conventions (this file)
 README.md                        ← English documentation
 README.zh-CN.md                  ← Simplified Chinese documentation
 greasyfork_readme.md             ← Greasy Fork listing description
@@ -25,16 +26,18 @@ The script is a self-contained IIFE with these sections:
 3. **Preset arrays** (lines 39-56) — Poll interval and time window options for right-click cycling
 4. **Data extraction** — `getEpisodeData()` reads `#episode-json[data-value]` from the page DOM
 5. **GigaViewer 4x4 restoration** — `restoreImage()` implements the slice transposition algorithm on Canvas
-6. **Download pipeline** — `fetch(url)` → `processAndRestore()` (Canvas decode + reformat) → ZIP or single-file save
-7. **RSS polling** — `fetchLatestFromRss()` fetches and parses `ichicomi.com/rss/series/{id}` with DOMParser
-8. **UI** — Three fixed-position buttons created in `createDownloadButton()`
+6. **Download pipeline** — `fetch(url)` → `processAndRestore()` (Canvas decode + reformat) → ZIP or single-file save. Checks `res.ok` before processing; non-OK responses throw to trigger retry.
+7. **RSS polling** — `fetchLatestFromRss()` fetches and parses `ichicomi.com/rss/series/{id}` with DOMParser. Log age formatted as "X天Y小时" or "X小时".
+8. **UI** — Three fixed-position buttons created in `createDownloadButton()`. `showToast()` displays floating non-blocking notifications.
 
 ## Key Design Decisions
 
 - **No GM_* APIs** — Uses `@grant none`; all features via standard DOM APIs and `fetch()`. RSS polling works because the RSS URL is same-origin with the manga pages.
 - **localStorage for persistence** — All settings (poll interval, time window, ZIP mode, auto-download log) persist across sessions without server-side storage.
 - **Episode URL as download key** — The download log uses full episode URLs as keys (not episode IDs or dates), making duplicate detection reliable.
-- **Right-click for presets** — All three buttons support left-click (toggle on/off) and right-click (cycle through preset values). This avoids hidden settings menus.
+- **Right-click for presets** — All three buttons support left-click (toggle on/off) and right-click (cycle through preset values), avoiding hidden settings menus. On non-episode pages, right-click triggers are ignored (buttons are disabled).
+- **Non-blocking notifications** — `showToast()` renders a floating orange pill that fades in/out near the buttons. Used for duplicate download reminders instead of `alert()` dialogs.
+- **Defensive fetch** — All `fetch()` calls check `res.ok` before processing the response. Non-OK statuses (404, 500) throw to trigger the retry path.
 
 ## Button Layout (bottom-left, fixed position)
 
@@ -55,8 +58,7 @@ downloadAll({auto: bool})
   ├─ hasAutoDownloaded()?
   │   ├─ auto → silent skip (return false)
   │   └─ manual → showToast('该章节已下载过') → continue
-  ├─ fetch each page URL (250ms interval between pages)
-  │   └─ first failure → wait 1s → retry once
+  ├─ fetch each page URL (250ms interval, checks res.ok, first failure → wait 1s → retry once)
   ├─ processAndRestore: fetch blob → Image → restoreImage (Canvas) → toBlob (configurable format/quality)
   └─ successCount > 0 → markAutoDownloaded(location.href)
       └─ ZIP mode: JSZip → generate blob → download .zip
@@ -69,7 +71,7 @@ downloadAll({auto: bool})
 pollRss()
   ├─ RSS disabled or downloading? → schedule next, return
   ├─ Non-episode page (no getRssUrl)? → schedule next, return
-  ├─ fetchLatestFromRss() → DOMParser → first <item>
+  ├─ fetchLatestFromRss() → DOMParser → first <item> → format age as "X天Y小时"
   ├─ Already downloaded? → skip
   ├─ Auto-check off? → skip (but log discovery)
   ├─ pubDate outside time window? → skip
@@ -92,6 +94,7 @@ autoRecentWindowMs: ...    // Default time window (buttons override)
 
 - Comments and UI text use Chinese primarily (the target audience is Chinese-speaking)
 - Console log prefix: `[一迅社复原]`
+- RSS age display: `X天Y小时 前更新` (hours-only under 24h: `X小时`)
 - Keep the script self-contained in a single file — no build step, no dependencies beyond JSZip CDN
 - Version number in the `@version` userscript header matches the tag in README changelogs
 - Update all three READMEs when adding user-facing features
