@@ -674,13 +674,19 @@
         }
 
         const pubDate = new Date(latest.pubDate);
-        let hoursAgo = '?';
+        let ageText = '?';
         if (!isNaN(pubDate.getTime())) {
-            const ageMs = Date.now() - pubDate.getTime();
-            hoursAgo = String(Math.round(ageMs / (60 * 60 * 1000)));
+            const hours = Math.round((Date.now() - pubDate.getTime()) / (60 * 60 * 1000));
+            if (hours >= 24) {
+                const days = Math.floor(hours / 24);
+                const remain = hours % 24;
+                ageText = remain > 0 ? `${days}天${remain}小时` : `${days}天`;
+            } else {
+                ageText = `${hours}小时`;
+            }
         }
 
-        console.log(`[一迅社复原] 自动检查：RSS 最新话 "${latest.title}" (${hoursAgo} 小时前更新)`);
+        console.log(`[一迅社复原] 自动检查：RSS 最新话 "${latest.title}" (${ageText} 前更新)`);
 
         // 最新话已下载过，跳过
         if (hasAutoDownloaded(latest.link)) {
@@ -700,7 +706,7 @@
         if (!isNaN(pubDate.getTime())) {
             const ageMs = Date.now() - pubDate.getTime();
             if (ageMs < 0 || ageMs > getAutoWindowMs()) {
-                console.log(`[一迅社复原] 自动检查：发现新话 "${latest.title}"，但发布于 ${hoursAgo} 小时前，超出时间窗口，跳过。`);
+                console.log(`[一迅社复原] 自动检查：发现新话 "${latest.title}"，但发布于 ${ageText} 前，超出时间窗口，跳过。`);
                 scheduleRssPoll();
                 return;
             }
