@@ -8,7 +8,7 @@ ichicomi-downloader is a Tampermonkey userscript that downloads and restores man
 
 ## Repository Structure
 
-```
+```text
 一迅社图片下载油猴脚本.user.js   ← The entire project: a single userscript (~820 lines)
 README.md                        ← English documentation
 README.zh-CN.md                  ← Simplified Chinese documentation
@@ -38,7 +38,7 @@ The script is a self-contained IIFE with these sections:
 
 ## Button Layout (bottom-left, fixed position)
 
-```
+```text
 124px: RSS Poll (right-click: 30s → 1min → 5min → 10min → 30min → 60min)
  72px: Auto-Check (right-click: 1h → 6h → 12h → 24h → 48h → 7d)
  20px: Download Chapter (right-click: ZIP ↔ single-page)
@@ -49,7 +49,7 @@ The script is a self-contained IIFE with these sections:
 
 ## Download Flow
 
-```
+```text
 downloadAll({auto: bool})
   ├─ isDownloading? → skip
   ├─ hasAutoDownloaded()?
@@ -65,7 +65,7 @@ downloadAll({auto: bool})
 
 ## RSS Polling Flow
 
-```
+```text
 pollRss()
   ├─ RSS disabled or downloading? → schedule next, return
   ├─ Non-episode page (no getRssUrl)? → schedule next, return
