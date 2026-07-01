@@ -2,9 +2,9 @@
 // @name         ichicomi-downloader
 // @name:zh-CN   一迅社图片下载油猴脚本
 // @namespace    https://github.com/Ya-yadesu/ichicomi-downloader
-// @version      3.7
-// @description  Manga image downloader and restorer for Ichijinsha (ichicomi.com). Supports 4x4 image restoration, auto-ZIP packaging, and automatic update checks.
-// @description:zh-CN 精简版一迅社漫画图片复原下载脚本。提供“一键下载整话”悬浮按钮，支持后台静默下载、4x4对齐复原及边缘像素保留。支持自定义导出画质、自动打包为zip，以及自动刷新检查近一天更新并下载。
+// @version      3.8
+// @description  Manga image downloader and restorer for Ichijinsha (ichicomi.com). Supports 4x4 image restoration, auto-ZIP packaging, and RSS-based automatic update checks.
+// @description:zh-CN 精简版一迅社漫画图片复原下载脚本。提供”一键下载整话”悬浮按钮，支持后台静默下载、4x4对齐复原及边缘像素保留。支持自定义导出画质、自动打包为zip，以及基于RSS的自动更新检查并下载。
 // @license      MIT
 // @match        https://ichicomi.com/*
 // @run-at       document-end
@@ -26,15 +26,17 @@
         format: 'image/jpeg',  // 导出格式可选: 'image/jpeg' (默认), 'image/png' (完全无损但体积大), 'image/webp' (高压缩无损/有损)
         quality: 0.98,         // 导出质量 (仅对 jpeg 和 webp 生效，范围 0.0 ~ 1.0)
         zipEnabled: true,      // 是否开启自动打包为 ZIP 文件 (true: 开启打包, false: 依次下载单张图片)
-        autoCheckIntervalMs: 30 * 60 * 1000,      // 自动检查开启后，每隔多久刷新页面检查一次更新
-        autoRecentWindowMs: 24 * 60 * 60 * 1000   // 自动下载的更新时间窗口：近 24 小时
+        autoCheckIntervalMs: 1 * 60 * 1000,        // RSS 轮询间隔（分钟 * 秒 * 毫秒），当前 = 1 分钟
+        autoRecentWindowMs: 24 * 60 * 60 * 1000   // 自动下载的时间窗口（小时 * 分钟 * 秒 * 毫秒），仅下载近 N 小时内更新的新话
     };
 
     const AUTO_ENABLED_KEY = 'ichicomiDownloader.autoCheckEnabled';
+    const RSS_POLL_ENABLED_KEY = 'ichicomiDownloader.rssPollEnabled';
     const AUTO_DOWNLOAD_LOG_KEY = 'ichicomiDownloader.autoDownloadedEpisodes';
 
     let btn = null;
     let autoBtn = null;
+    let rssBtn = null;
     let pageUrls = null;
     let episodeData = null;
     let autoTimer = null;
@@ -180,88 +182,41 @@
         return document.title ? document.title.replace(/\s*\|\s*ichicomi/i, '').trim() : location.pathname;
     }
 
-    function parseDateValue(value) {
-        if (value === null || value === undefined || value === '') return null;
-        if (typeof value === 'number') {
-            const timestamp = value < 1000000000000 ? value * 1000 : value;
-            const date = new Date(timestamp);
-            return isNaN(date.getTime()) ? null : date;
-        }
-        if (typeof value !== 'string') return null;
-
-        const normalized = value
-            .trim()
-            .replace(/[年月]/g, '/')
-            .replace(/日/g, '')
-            .replace(/\./g, '/');
-
-        if (/^\d+$/.test(normalized)) {
-            return parseDateValue(Number(normalized));
-        }
-
-        const date = new Date(normalized);
-        return isNaN(date.getTime()) ? null : date;
-    }
-
-    function collectDateCandidates(source, candidates) {
-        if (!source || typeof source !== 'object') return;
-        const dateKeyPattern = /(publish|published|release|released|start|update|updated|created|date|opened|available|begin|delivery|display)/i;
-
-        Object.keys(source).forEach(key => {
-            const value = source[key];
-            if (dateKeyPattern.test(key)) {
-                const parsed = parseDateValue(value);
-                if (parsed) candidates.push({ key, date: parsed });
-            }
-            if (value && typeof value === 'object') {
-                collectDateCandidates(value, candidates);
-            }
-        });
-    }
-
-    function extractDateFromPageText() {
-        const text = document.body ? document.body.innerText : "";
-        if (!text) return null;
-
-        const patterns = [
-            /\b20\d{2}[/-]\d{1,2}[/-]\d{1,2}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?\b/g,
-            /20\d{2}年\d{1,2}月\d{1,2}日(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?/g
-        ];
-
-        for (const pattern of patterns) {
-            const matches = text.match(pattern);
-            if (!matches) continue;
-            for (const match of matches) {
-                const parsed = parseDateValue(match);
-                if (parsed) return parsed;
-            }
+    function getSeriesId() {
+        const data = getEpisodeData();
+        const prod = data && data.readableProduct;
+        if (prod && prod.series && prod.series.id) {
+            return prod.series.id;
         }
         return null;
     }
 
-    function getEpisodeUpdatedAt() {
-        const candidates = [];
-        const data = getEpisodeData();
-        if (data) collectDateCandidates(data, candidates);
-
-        if (candidates.length > 0) {
-            candidates.sort((a, b) => b.date.getTime() - a.date.getTime());
-            console.log(`[一迅社复原] 检测到章节时间字段 ${candidates[0].key}: ${candidates[0].date.toISOString()}`);
-            return candidates[0].date;
-        }
-
-        const fallbackDate = extractDateFromPageText();
-        if (fallbackDate) {
-            console.log(`[一迅社复原] 从页面文本检测到章节时间: ${fallbackDate.toISOString()}`);
-        }
-        return fallbackDate;
+    function getRssUrl() {
+        const seriesId = getSeriesId();
+        if (!seriesId) return null;
+        return `https://ichicomi.com/rss/series/${seriesId}`;
     }
 
-    function getEpisodeKey() {
-        const data = getEpisodeData();
-        const prod = data && data.readableProduct;
-        const rawKey = prod && (prod.id || prod.readableProductId || prod.productId || prod.episodeId || prod.title);
-        return String(rawKey || `${location.origin}${location.pathname}`);
+    async function fetchLatestFromRss() {
+        const rssUrl = getRssUrl();
+        if (!rssUrl) return null;
+        try {
+            const res = await fetch(rssUrl);
+            if (!res.ok) return null;
+            const xmlText = await res.text();
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(xmlText, 'text/xml');
+            const firstItem = doc.querySelector('item');
+            if (!firstItem) return null;
+            const title = firstItem.querySelector('title')?.textContent?.trim() || '';
+            const link = firstItem.querySelector('link')?.textContent?.trim() || '';
+            const pubDate = firstItem.querySelector('pubDate')?.textContent?.trim() || '';
+            if (!link) return null;
+            return { title, link, pubDate };
+        } catch (e) {
+            console.error('[一迅社复原] RSS 获取失败:', e);
+            return null;
+        }
     }
 
     function getAutoDownloadedLog() {
@@ -273,21 +228,19 @@
         }
     }
 
-    function markAutoDownloaded(updatedAt) {
+    function markAutoDownloaded(episodeUrl) {
         const log = getAutoDownloadedLog();
-        log[getEpisodeKey()] = {
+        const url = episodeUrl || location.href;
+        log[url] = {
             title: getEpisodeTitle(),
-            updatedAt: updatedAt ? updatedAt.toISOString() : null,
             downloadedAt: new Date().toISOString()
         };
         localStorage.setItem(AUTO_DOWNLOAD_LOG_KEY, JSON.stringify(log));
     }
 
-    function hasAutoDownloaded(updatedAt) {
-        const record = getAutoDownloadedLog()[getEpisodeKey()];
-        if (!record) return false;
-        if (!updatedAt || !record.updatedAt) return true;
-        return record.updatedAt === updatedAt.toISOString();
+    function hasAutoDownloaded(episodeUrl) {
+        const url = episodeUrl || location.href;
+        return Boolean(getAutoDownloadedLog()[url]);
     }
 
     function isAutoCheckEnabled() {
@@ -297,10 +250,34 @@
     function setAutoCheckEnabled(enabled) {
         localStorage.setItem(AUTO_ENABLED_KEY, enabled ? 'true' : 'false');
         updateAutoButton();
-        scheduleAutoRefresh();
+        scheduleRssPoll();
         if (enabled) {
-            runAutoCheck();
+            pollRss();
         }
+    }
+
+    function isRssPollEnabled() {
+        return localStorage.getItem(RSS_POLL_ENABLED_KEY) !== 'false';
+    }
+
+    function setRssPollEnabled(enabled) {
+        localStorage.setItem(RSS_POLL_ENABLED_KEY, enabled ? 'true' : 'false');
+        updateRssButton();
+        if (enabled) {
+            pollRss();
+        } else {
+            if (autoTimer) {
+                clearTimeout(autoTimer);
+                autoTimer = null;
+            }
+        }
+    }
+
+    function updateRssButton() {
+        if (!rssBtn) return;
+        const enabled = isRssPollEnabled();
+        rssBtn.innerText = enabled ? 'RSS轮询：开' : 'RSS轮询：关';
+        rssBtn.style.backgroundColor = enabled ? 'rgba(46, 125, 50, 0.9)' : 'rgba(80, 80, 80, 0.82)';
     }
 
     // 一键下载整话逻辑
@@ -328,6 +305,9 @@
         }
         if (autoBtn) {
             autoBtn.disabled = true;
+        }
+        if (rssBtn) {
+            rssBtn.disabled = true;
         }
 
         console.log(`[一迅社复原] 开始一键下载，共 ${pageUrls.length} 页。`);
@@ -427,6 +407,10 @@
             autoBtn.disabled = false;
             updateAutoButton();
         }
+        if (rssBtn) {
+            rssBtn.disabled = false;
+            updateRssButton();
+        }
     }
 
     function updateAutoButton() {
@@ -436,56 +420,72 @@
         autoBtn.style.backgroundColor = enabled ? 'rgba(46, 125, 50, 0.9)' : 'rgba(80, 80, 80, 0.82)';
     }
 
-    function scheduleAutoRefresh() {
+    function scheduleRssPoll() {
         if (autoTimer) {
             clearTimeout(autoTimer);
             autoTimer = null;
         }
-        if (!isAutoCheckEnabled()) return;
-        if (!document.getElementById('episode-json')) {
-            console.log("[一迅社复原] 自动检查：当前页面不是可识别的章节页，不安排自动刷新。");
-            return;
-        }
+        if (!isRssPollEnabled()) return;
 
-        autoTimer = setTimeout(() => {
-            if (isDownloading) {
-                scheduleAutoRefresh();
-                return;
-            }
-            console.log("[一迅社复原] 自动检查：刷新页面以检查更新。");
-            location.reload();
-        }, CONFIG.autoCheckIntervalMs);
+        autoTimer = setTimeout(pollRss, CONFIG.autoCheckIntervalMs);
     }
 
-    async function runAutoCheck() {
-        if (!isAutoCheckEnabled() || isDownloading) return;
-
-        const updatedAt = getEpisodeUpdatedAt();
-        if (!updatedAt) {
-            console.log("[一迅社复原] 自动检查：未检测到章节更新时间，本轮不自动下载。");
-            scheduleAutoRefresh();
+    async function pollRss() {
+        if (!isRssPollEnabled() || isDownloading) {
+            scheduleRssPoll();
             return;
         }
 
-        const ageMs = Date.now() - updatedAt.getTime();
-        if (ageMs < 0 || ageMs > CONFIG.autoRecentWindowMs) {
-            console.log(`[一迅社复原] 自动检查：${getEpisodeTitle()} 不在近 24 小时更新窗口内。`);
-            scheduleAutoRefresh();
+        const latest = await fetchLatestFromRss();
+        if (!latest) {
+            console.log('[一迅社复原] 自动检查：RSS 获取失败，下次重试。');
+            scheduleRssPoll();
             return;
         }
 
-        if (hasAutoDownloaded(updatedAt)) {
-            console.log(`[一迅社复原] 自动检查：${getEpisodeTitle()} 已自动下载过，跳过。`);
-            scheduleAutoRefresh();
+        console.log(`[一迅社复原] 自动检查：RSS 最新话 "${latest.title}" (${latest.pubDate})`);
+
+        // 最新话已下载过，跳过
+        if (hasAutoDownloaded(latest.link)) {
+            console.log('[一迅社复原] 自动检查：最新话已下载过，跳过。');
+            scheduleRssPoll();
             return;
         }
 
-        console.log(`[一迅社复原] 自动检查：发现近 24 小时内更新，开始自动下载 ${getEpisodeTitle()}。`);
-        const downloaded = await downloadAll({ auto: true });
-        if (downloaded) {
-            markAutoDownloaded(updatedAt);
+        // 发现新话，但自动下载未开启，仅记录
+        if (!isAutoCheckEnabled()) {
+            console.log(`[一迅社复原] 自动检查：发现新话 "${latest.title}"，但自动下载未开启，跳过。`);
+            scheduleRssPoll();
+            return;
         }
-        scheduleAutoRefresh();
+
+        // 检查发布时间是否在时间窗口内
+        const pubDate = new Date(latest.pubDate);
+        if (!isNaN(pubDate.getTime())) {
+            const ageMs = Date.now() - pubDate.getTime();
+            if (ageMs < 0 || ageMs > CONFIG.autoRecentWindowMs) {
+                const hoursAgo = Math.round(ageMs / (60 * 60 * 1000));
+                console.log(`[一迅社复原] 自动检查：发现新话 "${latest.title}"，但发布于 ${hoursAgo} 小时前，超出时间窗口，跳过。`);
+                scheduleRssPoll();
+                return;
+            }
+        }
+
+        // 当前页面就是最新话，直接下载
+        if (location.href === latest.link) {
+            console.log('[一迅社复原] 自动检查：当前页面即是最新话，开始自动下载。');
+            const downloaded = await downloadAll({ auto: true });
+            if (downloaded) {
+                markAutoDownloaded(latest.link);
+            }
+        } else {
+            // 发现新话，跳转过去
+            console.log(`[一迅社复原] 自动检查：发现新话，跳转到 ${latest.link}`);
+            location.href = latest.link;
+            return;
+        }
+
+        scheduleRssPoll();
     }
 
     // 创建悬浮下载按钮
@@ -547,10 +547,32 @@
         document.body.appendChild(autoBtn);
         updateAutoButton();
 
+        // RSS 轮询开关按钮
+        rssBtn = document.createElement('button');
+        rssBtn.style.position = 'fixed';
+        rssBtn.style.bottom = '116px';
+        rssBtn.style.left = '20px';
+        rssBtn.style.zIndex = '99999';
+        rssBtn.style.padding = '8px 16px';
+        rssBtn.style.color = '#fff';
+        rssBtn.style.border = 'none';
+        rssBtn.style.borderRadius = '30px';
+        rssBtn.style.cursor = 'pointer';
+        rssBtn.style.fontFamily = 'system-ui, -apple-system, sans-serif';
+        rssBtn.style.fontSize = '12px';
+        rssBtn.style.fontWeight = 'bold';
+        rssBtn.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+        rssBtn.style.backdropFilter = 'blur(8px)';
+        rssBtn.style.transition = 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)';
+        rssBtn.addEventListener('click', () => {
+            setRssPollEnabled(!isRssPollEnabled());
+        });
+        document.body.appendChild(rssBtn);
+        updateRssButton();
+
         // 尝试提前加载页面结构数据
         loadPageUrls();
-        runAutoCheck();
-        scheduleAutoRefresh();
+        pollRss();
     }
 
     // 页面加载完成后挂载悬浮按钮
