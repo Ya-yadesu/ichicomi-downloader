@@ -430,6 +430,38 @@
         btn.innerText = zip ? '一键下载整话(ZIP)' : '一键下载整话(单张)';
     }
 
+    function showToast(msg, durationMs = 2000) {
+        const toast = document.createElement('div');
+        toast.innerText = msg;
+        toast.style.position = 'fixed';
+        toast.style.bottom = '80px';
+        toast.style.left = '20px';
+        toast.style.zIndex = '100000';
+        toast.style.padding = '10px 20px';
+        toast.style.backgroundColor = 'rgba(255, 152, 0, 0.9)';
+        toast.style.color = '#fff';
+        toast.style.borderRadius = '20px';
+        toast.style.fontFamily = 'system-ui, -apple-system, sans-serif';
+        toast.style.fontSize = '13px';
+        toast.style.fontWeight = 'bold';
+        toast.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.2)';
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(8px)';
+        toast.style.transition = 'opacity 0.3s, transform 0.3s';
+        document.body.appendChild(toast);
+        requestAnimationFrame(() => {
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateY(0)';
+        });
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(8px)';
+            setTimeout(() => {
+                if (toast.parentNode) toast.parentNode.removeChild(toast);
+            }, 300);
+        }, durationMs);
+    }
+
     // 一键下载整话逻辑
     async function downloadAll(options = {}) {
         const isAuto = Boolean(options.auto);
@@ -445,16 +477,8 @@
                 console.log("[一迅社复原] 该章节已下载过，跳过自动下载。");
                 return false;
             } else {
-                // 手动下载：按钮短暂提示，不阻止
-                if (btn) {
-                    const prev = btn.innerText;
-                    btn.innerText = '已下载过，可再次下载';
-                    btn.style.backgroundColor = 'rgba(255, 152, 0, 0.85)';
-                    setTimeout(() => {
-                        btn.innerText = prev;
-                        btn.style.backgroundColor = 'rgba(30, 136, 229, 0.85)';
-                    }, 2000);
-                }
+                // 手动下载：短暂漂浮提示，不阻止
+                showToast('已下载过，可再次下载');
             }
         }
 
