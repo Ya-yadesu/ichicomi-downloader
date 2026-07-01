@@ -22,6 +22,23 @@ With the evolution of our technical solutions, we now primarily use the **Tamper
     2.  **Supports Blob resources**: Intercepts and parses image data in memory, solving issues where traditional downloaders cannot fetch `blob:` temporary protocol images.
     3.  **Instant Decryption and Restoration**: Uses HTML5 Canvas on the client-side to execute a 4x4 GigaViewer slice transposition algorithm. The downloaded images are instantly restored to high-definition original images.
     4.  **Auto-ZIP Packaging & Naming**: Integrates the JSZip library to automatically package all restored pages into a `.zip` archive named after the manga and chapter title; configuration option `CONFIG.zipEnabled` at the top of the script allows toggling this packaging feature.
+    5.  **RSS-based Auto-Check**: Adds a floating "RSS Poll" toggle. When enabled, the script periodically fetches the series RSS feed (just a few KB) to detect new episodes. Combined with the "Auto-Check" toggle, newly published episodes are automatically downloaded.
+    6.  **Smart Time Window**: Only auto-downloads episodes published within the configured time window (default 24 hours), preventing accidental downloads of old episodes.
+
+### Floating Button Controls
+
+The script displays three buttons at the bottom-left of the page:
+
+| Button | Position | Function |
+|--------|----------|----------|
+| **Download Chapter** | Bottom | Manually download the current chapter |
+| **Auto-Check** | Middle | When ON, automatically downloads new episodes discovered by RSS polling |
+| **RSS Poll** | Top | When ON, periodically polls the RSS feed (default: every 1 min) to detect new episodes |
+
+- RSS polling is lightweight (~few KB per poll), safe to run at high frequency.
+- Auto-download only triggers for episodes published within the configured time window.
+- Both toggles persist across page refreshes via `localStorage`.
+- Polling interval (`CONFIG.autoCheckIntervalMs`) and time window (`CONFIG.autoRecentWindowMs`) are configurable at the top of the script.
 
 ---
 
