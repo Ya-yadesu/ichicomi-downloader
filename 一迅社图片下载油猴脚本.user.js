@@ -62,6 +62,8 @@
     let episodeData = null;
     let autoTimer = null;
     let isDownloading = false;
+    let rssProgressTimer = null;
+    let pollStartTime = 0;
 
     function getEpisodeData() {
         if (episodeData) return episodeData;
@@ -88,6 +90,10 @@
                 console.error("[一迅社复原] 获取页面结构失败", e);
             }
         }
+    }
+
+    function isEpisodePage() {
+        return Boolean(document.getElementById('episode-json'));
     }
 
     /**
@@ -264,6 +270,27 @@
         return Boolean(getAutoDownloadedLog()[url]);
     }
 
+    // 清理超过 15 天的下载记录
+    function cleanOldDownloadLog() {
+        const log = getAutoDownloadedLog();
+        const cutoff = Date.now() - 15 * 24 * 60 * 60 * 1000;
+        let cleaned = false;
+        Object.keys(log).forEach(url => {
+            const record = log[url];
+            if (record && record.downloadedAt) {
+                const ts = new Date(record.downloadedAt).getTime();
+                if (!isNaN(ts) && ts < cutoff) {
+                    delete log[url];
+                    cleaned = true;
+                }
+            }
+        });
+        if (cleaned) {
+            localStorage.setItem(AUTO_DOWNLOAD_LOG_KEY, JSON.stringify(log));
+            console.log('[一迅社复原] 已清理超过 15 天的下载记录。');
+        }
+    }
+
     function isAutoCheckEnabled() {
         return localStorage.getItem(AUTO_ENABLED_KEY) === 'true';
     }
@@ -340,8 +367,40 @@
         const intervalMs = getPollIntervalMs();
         const preset = POLL_INTERVAL_PRESETS.find(p => p.ms === intervalMs);
         const label = preset ? preset.label : '?';
-        rssBtn.innerText = enabled ? `RSS：${label}` : 'RSS：关';
-        rssBtn.style.backgroundColor = enabled ? 'rgba(46, 125, 50, 0.9)' : 'rgba(80, 80, 80, 0.82)';
+
+        if (!isEpisodePage()) {
+            rssBtn.innerText = 'RSS：--';
+            stopRssProgress();
+            rssBtn.style.backgroundColor = 'rgba(80, 80, 80, 0.5)';
+        } else if (enabled) {
+            rssBtn.innerText = `RSS：${label}`;
+            startRssProgress();
+        } else {
+            rssBtn.innerText = 'RSS：关';
+            stopRssProgress();
+            rssBtn.style.backgroundColor = 'rgba(80, 80, 80, 0.82)';
+        }
+    }
+
+    function startRssProgress() {
+        stopRssProgress();
+        if (!isEpisodePage()) return;
+        pollStartTime = Date.now();
+        rssProgressTimer = setInterval(() => {
+            if (!rssBtn) { stopRssProgress(); return; }
+            const elapsed = Date.now() - pollStartTime;
+            const intervalMs = getPollIntervalMs();
+            const pct = Math.min(100, (elapsed / intervalMs) * 100);
+            rssBtn.style.background = `linear-gradient(to right, rgba(46, 125, 50, 0.9) ${pct}%, rgba(80, 80, 80, 0.82) ${pct}%)`;
+        }, 60);
+    }
+
+    function stopRssProgress() {
+        if (rssProgressTimer) {
+            clearInterval(rssProgressTimer);
+            rssProgressTimer = null;
+        }
+        pollStartTime = 0;
     }
 
     // 一键下载整话逻辑
@@ -351,6 +410,19 @@
             console.log("[一迅社复原] 下载任务已在运行，跳过重复触发。");
             return false;
         }
+
+        // 重复下载检查
+        if (hasAutoDownloaded()) {
+            if (isAuto) {
+                // 自动下载：有记录则静默跳过
+                console.log("[一迅社复原] 该章节已下载过，跳过自动下载。");
+                return false;
+            } else {
+                // 手动下载：提醒但不阻止
+                alert("该章节已下载过，可以再次下载。");
+            }
+        }
+
         if (!pageUrls) {
             loadPageUrls();
         }
@@ -398,10 +470,20 @@
 
             try {
                 const url = pageUrls[i];
-                const res = await fetch(url);
-                const blob = await res.blob();
-                const result = await processAndRestore(blob, pageIndex);
-                
+                let result;
+                try {
+                    const res = await fetch(url);
+                    const blob = await res.blob();
+                    result = await processAndRestore(blob, pageIndex);
+                } catch (firstErr) {
+                    // 失败后等 1 秒重试一次
+                    console.warn(`[一迅社复原] 第 ${pageIndex} 页首次下载失败，1秒后重试:`, firstErr);
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    const res = await fetch(url);
+                    const blob = await res.blob();
+                    result = await processAndRestore(blob, pageIndex);
+                }
+
                 if (CONFIG.zipEnabled && zip) {
                     zip.file(result.filename, result.blob);
                     console.log(`[一迅社复原] 已加入 ZIP: ${result.filename}`);
@@ -448,6 +530,10 @@
             }
         }
 
+        if (successCount > 0) {
+            markAutoDownloaded();
+        }
+
         if (btn) {
             btn.innerText = "下载完成";
             btn.style.backgroundColor = 'rgba(76, 175, 80, 0.85)';
@@ -479,6 +565,11 @@
 
     function updateAutoButton() {
         if (!autoBtn) return;
+        if (!isEpisodePage()) {
+            autoBtn.innerText = '自动：--';
+            autoBtn.style.backgroundColor = 'rgba(80, 80, 80, 0.5)';
+            return;
+        }
         const enabled = isAutoCheckEnabled();
         const windowMs = getAutoWindowMs();
         const preset = AUTO_WINDOW_PRESETS.find(p => p.ms === windowMs);
@@ -503,7 +594,18 @@
             return;
         }
 
+        // 非章节页，跳过 RSS 轮询
+        if (!getRssUrl()) {
+            console.log('[一迅社复原] 自动检查：当前页面非章节页，不执行 RSS 轮询。');
+            scheduleRssPoll();
+            return;
+        }
+
         const latest = await fetchLatestFromRss();
+
+        // 轮询完成，重置进度条
+        pollStartTime = Date.now();
+
         if (!latest) {
             console.log('[一迅社复原] 自动检查：RSS 获取失败，下次重试。');
             scheduleRssPoll();
@@ -541,10 +643,7 @@
         // 当前页面就是最新话，直接下载
         if (location.href === latest.link) {
             console.log('[一迅社复原] 自动检查：当前页面即是最新话，开始自动下载。');
-            const downloaded = await downloadAll({ auto: true });
-            if (downloaded) {
-                markAutoDownloaded(latest.link);
-            }
+            await downloadAll({ auto: true });
         } else {
             // 发现新话，跳转过去
             console.log(`[一迅社复原] 自动检查：发现新话，跳转到 ${latest.link}`);
@@ -553,6 +652,26 @@
         }
 
         scheduleRssPoll();
+    }
+
+    function applyNonEpisodeState() {
+        if (isEpisodePage()) return;
+        if (btn) {
+            btn.style.backgroundColor = 'rgba(80, 80, 80, 0.5)';
+            btn.style.cursor = 'not-allowed';
+            btn.disabled = true;
+            btn.title = '当前页面非章节页，无法下载';
+        }
+        if (autoBtn) {
+            autoBtn.style.cursor = 'not-allowed';
+            autoBtn.disabled = true;
+            autoBtn.title = '当前页面非章节页';
+        }
+        if (rssBtn) {
+            rssBtn.style.cursor = 'not-allowed';
+            rssBtn.disabled = true;
+            rssBtn.title = '当前页面非章节页';
+        }
     }
 
     // 创建悬浮下载按钮
@@ -653,8 +772,10 @@
         document.body.appendChild(rssBtn);
         updateRssButton();
 
-        // 尝试提前加载页面结构数据
+        // 清理过期记录 + 加载页面数据
+        cleanOldDownloadLog();
         loadPageUrls();
+        applyNonEpisodeState();
         pollRss();
     }
 
