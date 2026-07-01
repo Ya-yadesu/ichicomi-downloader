@@ -32,7 +32,28 @@
 
     const AUTO_ENABLED_KEY = 'ichicomiDownloader.autoCheckEnabled';
     const RSS_POLL_ENABLED_KEY = 'ichicomiDownloader.rssPollEnabled';
+    const RSS_POLL_INTERVAL_KEY = 'ichicomiDownloader.rssPollIntervalMs';
+    const AUTO_WINDOW_KEY = 'ichicomiDownloader.autoRecentWindowMs';
     const AUTO_DOWNLOAD_LOG_KEY = 'ichicomiDownloader.autoDownloadedEpisodes';
+
+    // RSS 轮询间隔预设（毫秒）
+    const POLL_INTERVAL_PRESETS = [
+        { label: '1分', ms: 1 * 60 * 1000 },
+        { label: '5分', ms: 5 * 60 * 1000 },
+        { label: '10分', ms: 10 * 60 * 1000 },
+        { label: '30分', ms: 30 * 60 * 1000 },
+        { label: '60分', ms: 60 * 60 * 1000 },
+    ];
+
+    // 自动下载时间窗口预设（毫秒）
+    const AUTO_WINDOW_PRESETS = [
+        { label: '1时', ms: 1 * 60 * 60 * 1000 },
+        { label: '6时', ms: 6 * 60 * 60 * 1000 },
+        { label: '12时', ms: 12 * 60 * 60 * 1000 },
+        { label: '24时', ms: 24 * 60 * 60 * 1000 },
+        { label: '48时', ms: 48 * 60 * 60 * 1000 },
+        { label: '7天', ms: 7 * 24 * 60 * 60 * 1000 },
+    ];
 
     let btn = null;
     let autoBtn = null;
@@ -247,6 +268,46 @@
         return localStorage.getItem(AUTO_ENABLED_KEY) === 'true';
     }
 
+    // ---- RSS 轮询间隔 ----
+
+    function getPollIntervalMs() {
+        const stored = localStorage.getItem(RSS_POLL_INTERVAL_KEY);
+        if (stored) {
+            const ms = parseInt(stored, 10);
+            if (!isNaN(ms) && POLL_INTERVAL_PRESETS.some(p => p.ms === ms)) return ms;
+        }
+        return CONFIG.autoCheckIntervalMs;
+    }
+
+    function cyclePollInterval() {
+        const current = getPollIntervalMs();
+        const idx = POLL_INTERVAL_PRESETS.findIndex(p => p.ms === current);
+        const next = POLL_INTERVAL_PRESETS[(idx + 1) % POLL_INTERVAL_PRESETS.length];
+        localStorage.setItem(RSS_POLL_INTERVAL_KEY, String(next.ms));
+        updateRssButton();
+        // 重新安排下一次轮询
+        if (isRssPollEnabled()) scheduleRssPoll();
+    }
+
+    // ---- 自动下载时间窗口 ----
+
+    function getAutoWindowMs() {
+        const stored = localStorage.getItem(AUTO_WINDOW_KEY);
+        if (stored) {
+            const ms = parseInt(stored, 10);
+            if (!isNaN(ms) && AUTO_WINDOW_PRESETS.some(p => p.ms === ms)) return ms;
+        }
+        return CONFIG.autoRecentWindowMs;
+    }
+
+    function cycleAutoWindow() {
+        const current = getAutoWindowMs();
+        const idx = AUTO_WINDOW_PRESETS.findIndex(p => p.ms === current);
+        const next = AUTO_WINDOW_PRESETS[(idx + 1) % AUTO_WINDOW_PRESETS.length];
+        localStorage.setItem(AUTO_WINDOW_KEY, String(next.ms));
+        updateAutoButton();
+    }
+
     function setAutoCheckEnabled(enabled) {
         localStorage.setItem(AUTO_ENABLED_KEY, enabled ? 'true' : 'false');
         updateAutoButton();
@@ -276,7 +337,10 @@
     function updateRssButton() {
         if (!rssBtn) return;
         const enabled = isRssPollEnabled();
-        rssBtn.innerText = enabled ? 'RSS轮询：开' : 'RSS轮询：关';
+        const intervalMs = getPollIntervalMs();
+        const preset = POLL_INTERVAL_PRESETS.find(p => p.ms === intervalMs);
+        const label = preset ? preset.label : '?';
+        rssBtn.innerText = enabled ? `RSS：${label}` : 'RSS：关';
         rssBtn.style.backgroundColor = enabled ? 'rgba(46, 125, 50, 0.9)' : 'rgba(80, 80, 80, 0.82)';
     }
 
@@ -416,7 +480,10 @@
     function updateAutoButton() {
         if (!autoBtn) return;
         const enabled = isAutoCheckEnabled();
-        autoBtn.innerText = enabled ? "自动检查：开" : "自动检查：关";
+        const windowMs = getAutoWindowMs();
+        const preset = AUTO_WINDOW_PRESETS.find(p => p.ms === windowMs);
+        const label = preset ? preset.label : '?';
+        autoBtn.innerText = enabled ? `自动：${label}` : '自动：关';
         autoBtn.style.backgroundColor = enabled ? 'rgba(46, 125, 50, 0.9)' : 'rgba(80, 80, 80, 0.82)';
     }
 
@@ -427,7 +494,7 @@
         }
         if (!isRssPollEnabled()) return;
 
-        autoTimer = setTimeout(pollRss, CONFIG.autoCheckIntervalMs);
+        autoTimer = setTimeout(pollRss, getPollIntervalMs());
     }
 
     async function pollRss() {
@@ -463,7 +530,7 @@
         const pubDate = new Date(latest.pubDate);
         if (!isNaN(pubDate.getTime())) {
             const ageMs = Date.now() - pubDate.getTime();
-            if (ageMs < 0 || ageMs > CONFIG.autoRecentWindowMs) {
+            if (ageMs < 0 || ageMs > getAutoWindowMs()) {
                 const hoursAgo = Math.round(ageMs / (60 * 60 * 1000));
                 console.log(`[一迅社复原] 自动检查：发现新话 "${latest.title}"，但发布于 ${hoursAgo} 小时前，超出时间窗口，跳过。`);
                 scheduleRssPoll();
@@ -527,16 +594,16 @@
 
         autoBtn = document.createElement('button');
         autoBtn.style.position = 'fixed';
-        autoBtn.style.bottom = '68px';
+        autoBtn.style.bottom = '72px';
         autoBtn.style.left = '20px';
         autoBtn.style.zIndex = '99999';
-        autoBtn.style.padding = '10px 18px';
+        autoBtn.style.padding = '12px 24px';
         autoBtn.style.color = '#fff';
         autoBtn.style.border = 'none';
         autoBtn.style.borderRadius = '30px';
         autoBtn.style.cursor = 'pointer';
         autoBtn.style.fontFamily = 'system-ui, -apple-system, sans-serif';
-        autoBtn.style.fontSize = '13px';
+        autoBtn.style.fontSize = '14px';
         autoBtn.style.fontWeight = 'bold';
         autoBtn.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
         autoBtn.style.backdropFilter = 'blur(8px)';
@@ -544,28 +611,44 @@
         autoBtn.addEventListener('click', () => {
             setAutoCheckEnabled(!isAutoCheckEnabled());
         });
+        autoBtn.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            cycleAutoWindow();
+            // 如果当前是关闭状态，顺便开启
+            if (!isAutoCheckEnabled()) {
+                setAutoCheckEnabled(true);
+            }
+        });
         document.body.appendChild(autoBtn);
         updateAutoButton();
 
         // RSS 轮询开关按钮
         rssBtn = document.createElement('button');
         rssBtn.style.position = 'fixed';
-        rssBtn.style.bottom = '116px';
+        rssBtn.style.bottom = '124px';
         rssBtn.style.left = '20px';
         rssBtn.style.zIndex = '99999';
-        rssBtn.style.padding = '8px 16px';
+        rssBtn.style.padding = '12px 24px';
         rssBtn.style.color = '#fff';
         rssBtn.style.border = 'none';
         rssBtn.style.borderRadius = '30px';
         rssBtn.style.cursor = 'pointer';
         rssBtn.style.fontFamily = 'system-ui, -apple-system, sans-serif';
-        rssBtn.style.fontSize = '12px';
+        rssBtn.style.fontSize = '14px';
         rssBtn.style.fontWeight = 'bold';
         rssBtn.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
         rssBtn.style.backdropFilter = 'blur(8px)';
         rssBtn.style.transition = 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)';
         rssBtn.addEventListener('click', () => {
             setRssPollEnabled(!isRssPollEnabled());
+        });
+        rssBtn.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            cyclePollInterval();
+            // 如果当前是关闭状态，顺便开启
+            if (!isRssPollEnabled()) {
+                setRssPollEnabled(true);
+            }
         });
         document.body.appendChild(rssBtn);
         updateRssButton();
