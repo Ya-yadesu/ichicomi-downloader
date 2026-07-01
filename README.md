@@ -29,16 +29,18 @@ With the evolution of our technical solutions, we now primarily use the **Tamper
 
 The script displays three buttons at the bottom-left of the page:
 
-| Button | Position | Function |
-|--------|----------|----------|
-| **Download Chapter** | Bottom | Manually download the current chapter |
-| **Auto-Check** | Middle | When ON, automatically downloads new episodes discovered by RSS polling |
-| **RSS Poll** | Top | When ON, periodically polls the RSS feed (default: every 1 min) to detect new episodes |
+| Button | Left Click | Right Click |
+|--------|------------|-------------|
+| **Download Chapter** | Download current chapter | — |
+| **Auto-Check** | Toggle auto-download on/off | Cycle time window: 1h → 6h → 12h → 24h → 48h → 7d |
+| **RSS Poll** | Toggle RSS polling on/off | Cycle poll interval: 1min → 5min → 10min → 30min → 60min |
+
+The button text shows the current value at a glance (e.g. `RSS：1分`, `自动：24时`).
 
 - RSS polling is lightweight (~few KB per poll), safe to run at high frequency.
 - Auto-download only triggers for episodes published within the configured time window.
-- Both toggles persist across page refreshes via `localStorage`.
-- Polling interval (`CONFIG.autoCheckIntervalMs`) and time window (`CONFIG.autoRecentWindowMs`) are configurable at the top of the script.
+- Button text shows the current setting — right-click to adjust, no need to edit the script.
+- All settings persist across page refreshes via `localStorage`.
 
 ---
 
