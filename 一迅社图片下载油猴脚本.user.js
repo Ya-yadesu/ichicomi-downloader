@@ -530,17 +530,19 @@
             try {
                 const url = pageUrls[i];
                 let result;
-                try {
+                const fetchAndRestore = async () => {
                     const res = await fetch(url);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
                     const blob = await res.blob();
-                    result = await processAndRestore(blob, pageIndex);
+                    return await processAndRestore(blob, pageIndex);
+                };
+                try {
+                    result = await fetchAndRestore();
                 } catch (firstErr) {
                     // 失败后等 1 秒重试一次
                     console.warn(`[一迅社复原] 第 ${pageIndex} 页首次下载失败，1秒后重试:`, firstErr);
                     await new Promise(resolve => setTimeout(resolve, 1000));
-                    const res = await fetch(url);
-                    const blob = await res.blob();
-                    result = await processAndRestore(blob, pageIndex);
+                    result = await fetchAndRestore();
                 }
 
                 if (isZipEnabled() && zip) {
