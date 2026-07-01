@@ -34,6 +34,7 @@
     const RSS_POLL_ENABLED_KEY = 'ichicomiDownloader.rssPollEnabled';
     const RSS_POLL_INTERVAL_KEY = 'ichicomiDownloader.rssPollIntervalMs';
     const AUTO_WINDOW_KEY = 'ichicomiDownloader.autoRecentWindowMs';
+    const ZIP_ENABLED_KEY = 'ichicomiDownloader.zipEnabled';
     const AUTO_DOWNLOAD_LOG_KEY = 'ichicomiDownloader.autoDownloadedEpisodes';
 
     // RSS 轮询间隔预设（毫秒）
@@ -409,6 +410,26 @@
         pollStartTime = 0;
     }
 
+    // ---- ZIP 打包模式 ----
+
+    function isZipEnabled() {
+        const stored = localStorage.getItem(ZIP_ENABLED_KEY);
+        if (stored !== null) return stored === 'true';
+        return CONFIG.zipEnabled;
+    }
+
+    function toggleZipMode() {
+        const next = !isZipEnabled();
+        localStorage.setItem(ZIP_ENABLED_KEY, next ? 'true' : 'false');
+        updateDownloadButton();
+    }
+
+    function updateDownloadButton() {
+        if (!btn) return;
+        const zip = isZipEnabled();
+        btn.innerText = zip ? '一键下载整话(ZIP)' : '一键下载整话(单张)';
+    }
+
     // 一键下载整话逻辑
     async function downloadAll(options = {}) {
         const isAuto = Boolean(options.auto);
@@ -455,7 +476,7 @@
         console.log(`[一迅社复原] 开始一键下载，共 ${pageUrls.length} 页。`);
 
         let zip = null;
-        if (CONFIG.zipEnabled) {
+        if (isZipEnabled()) {
             if (typeof JSZip === 'undefined') {
                 if (!isAuto) {
                     alert("JSZip 库未加载成功，请检查网络或脚本声明。");
@@ -490,7 +511,7 @@
                     result = await processAndRestore(blob, pageIndex);
                 }
 
-                if (CONFIG.zipEnabled && zip) {
+                if (isZipEnabled() && zip) {
                     zip.file(result.filename, result.blob);
                     console.log(`[一迅社复原] 已加入 ZIP: ${result.filename}`);
                 } else {
@@ -512,7 +533,7 @@
             await new Promise(resolve => setTimeout(resolve, 250));
         }
 
-        if (CONFIG.zipEnabled && zip && successCount > 0) {
+        if (isZipEnabled() && zip && successCount > 0) {
             if (btn) {
                 btn.innerText = "正在打包 ZIP...";
             }
@@ -555,7 +576,7 @@
     function resetButton() {
         isDownloading = false;
         if (!btn) return;
-        btn.innerText = "一键下载整话";
+        updateDownloadButton();
         btn.style.backgroundColor = 'rgba(30, 136, 229, 0.85)';
         btn.style.cursor = 'pointer';
         btn.disabled = false;
@@ -684,7 +705,6 @@
     function createDownloadButton() {
         if (btn) return;
         btn = document.createElement('button');
-        btn.innerText = "一键下载整话";
         btn.style.position = 'fixed';
         btn.style.bottom = '20px';
         btn.style.left = '20px';
@@ -714,7 +734,13 @@
             btn.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
         });
 
+        updateDownloadButton();
+
         btn.addEventListener('click', downloadAll);
+        btn.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            toggleZipMode();
+        });
         document.body.appendChild(btn);
 
         autoBtn = document.createElement('button');
