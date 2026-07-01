@@ -673,7 +673,14 @@
             return;
         }
 
-        console.log(`[一迅社复原] 自动检查：RSS 最新话 "${latest.title}" (${latest.pubDate})`);
+        const pubDate = new Date(latest.pubDate);
+        let hoursAgo = '?';
+        if (!isNaN(pubDate.getTime())) {
+            const ageMs = Date.now() - pubDate.getTime();
+            hoursAgo = String(Math.round(ageMs / (60 * 60 * 1000)));
+        }
+
+        console.log(`[一迅社复原] 自动检查：RSS 最新话 "${latest.title}" (${hoursAgo} 小时前更新)`);
 
         // 最新话已下载过，跳过
         if (hasAutoDownloaded(latest.link)) {
@@ -690,11 +697,9 @@
         }
 
         // 检查发布时间是否在时间窗口内
-        const pubDate = new Date(latest.pubDate);
         if (!isNaN(pubDate.getTime())) {
             const ageMs = Date.now() - pubDate.getTime();
             if (ageMs < 0 || ageMs > getAutoWindowMs()) {
-                const hoursAgo = Math.round(ageMs / (60 * 60 * 1000));
                 console.log(`[一迅社复原] 自动检查：发现新话 "${latest.title}"，但发布于 ${hoursAgo} 小时前，超出时间窗口，跳过。`);
                 scheduleRssPoll();
                 return;
